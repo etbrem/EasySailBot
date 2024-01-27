@@ -18,5 +18,6 @@ DIR_MOVIES = '/plex/media/Movies'
 
 ## Requirements
 `python -m pip install transmissionrpc`
+Transmission client [listening on port 9091](https://github.com/transmission/transmission/blob/main/docs/Web-Interface.md) (or change create_transmission_rpc() in transmission_ctl.py)
 
 The "Storage Stats" command needs the linux binaries `df` and `grep`
