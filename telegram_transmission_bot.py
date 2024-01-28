@@ -7,43 +7,54 @@ import string
 import urllib
 import subprocess
 
-
-import aiogram.utils.markdown as md
-from aiogram import Bot, Dispatcher, types
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters import Text
-from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.types import ParseMode
-from aiogram.utils import executor
-
-
 import transmission_ctl
 
-def execute_shell(cmd):
-    return subprocess.check_output(cmd, shell=True).decode()
+
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+)
+
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 
 AUTHENTICATED_USER_IDS = []
-PASSWORD = ''
-
 API_TOKEN = ''
-bot = Bot(token=API_TOKEN)
 
 
-# For example use simple MemoryStorage for Dispatcher.
-storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
+def execute_shell(cmd):
+    return subprocess.check_output(cmd, shell=True).decode()
+
+def random_string(length=5, alphabet=string.ascii_letters):
+    return ''.join(random.choice(alphabet) for _ in range(length))
+
+def iter_torrent_reprs():
+    return transmission_ctl.iter_torrents(translation=transmission_ctl.torrent_repr)
 
 
+# TODO: Cleanup aiogram code completely
+__STATE_I__ = 0
 
-# States
-class Commands(StatesGroup):
+def State():
+    global __STATE_I__
+    __STATE_I__ += 1
+    return __STATE_I__
+
+
+class Commands(object):
+    _start = State()
     _authenticate = State()
+
     _main_menu = State()
+    _process_main_menu_choice = State()
+    _cancel = State()
     
     storage_stats = State()
     add_tv_show = State()
@@ -53,22 +64,15 @@ class Commands(StatesGroup):
     stop_torrent = State()
     delete_torrent = State()
 
-def random_string(length=5, alphabet=string.ascii_letters):
-    return ''.join(random.choice(alphabet) for _ in range(length))
-
-def enumerate_torrent_reprs():
-    return transmission_ctl.iter_torrents(translation=transmission_ctl.torrent_repr)
-
-    
-def enumerate_commands():
+def iter_commands():
 
     for field_name in dir(Commands):
         if field_name.startswith("_"):
             continue
     
         field_value = getattr(Commands, field_name, None)
+        if isinstance(field_value, int):
 
-        if isinstance(field_value, State):
             yield field_name
 
 def to_camel_case(text):
@@ -83,173 +87,192 @@ def to_camel_case(text):
     return ret[:-1]
 
 
-COMMANDS_BY_NAMES = {to_camel_case(cmd): cmd for cmd in enumerate_commands()}
-
-REMOVE_MARKUP = types.ReplyKeyboardRemove()
-MAIN_MENU_MARKUP = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-
-for cmd in COMMANDS_BY_NAMES.keys():
-    MAIN_MENU_MARKUP.add(cmd)
 
 
-async def serve_main_menu(message):
-    await Commands._main_menu.set()
-    await message.answer("Enter command:", reply_markup=MAIN_MENU_MARKUP)
+COMMANDS_BY_NAMES = {to_camel_case(cmd): cmd for cmd in iter_commands()}
 
-@dp.message_handler(commands='start')
-async def cmd_start(message: types.Message):
+COMMANDS_KEYBOARD_BUTTONS = [[cmd] for cmd in COMMANDS_BY_NAMES]
+
+MAIN_MENU_MARKUP = ReplyKeyboardMarkup(COMMANDS_KEYBOARD_BUTTONS, resize_keyboard=True, selective=True)
+REMOVE_MARKUP = ReplyKeyboardRemove()
+
+
+PASSWORD = ''
+
+async def reply(update: Update, text: str, reply_markup=REMOVE_MARKUP):
+    await update.message.reply_text(text, reply_markup=reply_markup)
+
+
+async def _start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Conversation's entry point
     """
     global PASSWORD
      
-    PASSWORD = random_string(alphabet=string.digits)
-    PASSWORD = PASSWORD[0].upper() + PASSWORD[1:]
+    if update.message.from_user.id in AUTHENTICATED_USER_IDS:
+        return await _main_menu(update)
 
-    if message.from_user.id in AUTHENTICATED_USER_IDS:
-        return await serve_main_menu(message)
+    PASSWORD = random_string(alphabet=string.digits)
     
     logging.critical("="*30)
     logging.critical(f"PASSWORD: {PASSWORD}")
     logging.critical("="*30)
 
-    await message.answer("Authenticate:", reply_markup=REMOVE_MARKUP)
-    await Commands.next()
+    await reply(update, "Authenticate:")
+    return Commands._authenticate
 
+async def _authenticate(update, context):
+    text = update.message.text
 
-@dp.message_handler(state=Commands._authenticate)
-async def process_authenticate(message: types.Message, state: FSMContext):
-    logging.info(f"PASSWORD ({PASSWORD}) ATTEMPT {bool(message.text == PASSWORD)}:  {message.from_user.id} '{message.text}'")
-    if message.text != PASSWORD:
-        return await state.finish()
+    logging.info(f"PASSWORD ({PASSWORD}) ATTEMPT {bool(text == PASSWORD)}: USERID={update.message.from_user.id} '{text}'")
+
+    if text != PASSWORD:
+        return ConversationHandler.END
         
-    await serve_main_menu(message)
+    return await _main_menu(update)
+
+async def _cancel(update, context):
+    await reply(update, 'Cancelled.')
+
+    # Don't serve main menu to prevent canceling during before authentication
+    return Commands._start
 
 
-# You can use state '*' if you need to handle all states
-@dp.message_handler(state='*', commands='cancel')
-@dp.message_handler(Text(equals='cancel', ignore_case=True), state='*')
-async def cancel_handler(message: types.Message, state: FSMContext):
-    """
-    Allow user to cancel any action
-    """
-    current_state = await state.get_state()
-    if current_state is None:
-        return
-
-    logging.info('Cancelling state %r', current_state)
-    # Cancel state and inform user about it
-    #await state.finish()
-    # And remove keyboard (just in case)
-    await message.reply('Cancelled.', reply_markup=REMOVE_MARKUP)
-    await serve_main_menu(message)
+async def _main_menu(update: Update, context=None):
+    await reply(update, "Enter command:", reply_markup=MAIN_MENU_MARKUP)
+    return Commands._process_main_menu_choice
 
 
-
-@dp.message_handler(state=Commands._main_menu)
-async def process_main_menu_choice(message: types.Message, state: FSMContext):
+async def _process_main_menu_choice(update: Update, context):
     """
     Process user name
     """
 
-    choice = COMMANDS_BY_NAMES.get(message.text, None)
+    choice = COMMANDS_BY_NAMES.get(update.message.text, None)
 
     logging.info(f"CHOICE: {choice}")
 
     if choice is None:
-        await message.reply("Enter command:", reply_markup=MAIN_MENU_MARKUP)
+        await reply(update, "Enter command:", reply_markup=MAIN_MENU_MARKUP)
+        return Commands._process_main_menu_choice
+
     else:
-        scope = globals().copy()
-        scope.update(locals())
+        scope = globals()
+        callback = scope.get(choice, None)
 
-        await getattr(Commands, choice).set()        
-        
-        prompt_callback = scope.get(choice, None)
-        if prompt_callback is not None:
-            await prompt_callback(message)
-        
+        if callback is not None:
+            return await callback(update, context)
+
+        return await _main_menu(update)
 
 
-async def list_torrents(message):
+async def list_torrents(update, context):
     for torrent_repr in transmission_ctl.iter_torrents(translation=transmission_ctl.torrent_status_repr):
-        await message.answer(torrent_repr)
+        await reply(update, torrent_repr)
         
-    await serve_main_menu(message)
+    return await _main_menu(update)
     
-async def storage_stats(message):
-    await message.answer(execute_shell("df -h | head -n 1; df -h | grep /plex/media"))
-    await serve_main_menu(message)
+async def storage_stats(update, context):
+    await reply(update, execute_shell("df -h | head -n 1; df -h | grep /plex/media"))
+    return await _main_menu(update)
+
     
     
-async def prompt_magnet(message: types.Message):
-    await message.answer("Enter magnet url (or type 'cancel'):", reply_markup=REMOVE_MARKUP)
+async def prompt_magnet(update: Update):
+    await reply(update, "Enter magnet url (or type 'cancel'):")
    
 def create_magnet_handler(state, callback):
-    @dp.message_handler(state=state)
     @functools.wraps(callback)
-    async def foo(message: types.Message):
-        if not message.text.lower().startswith("magnet:"):
-            return await prompt_magnet(message)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        text = update.message.text
+
+        if text.strip().lower() == 'cancel':
+            return await _main_menu(update)
+
+        if not text.lower().startswith("magnet:"):
+            await prompt_magnet(update)
+            return state
             
-        ret = callback(message.text)
+        ret = callback(text)
         
         try:
-            dn = urllib.parse.parse_qs(urllib.parse.urlsplit(message.text).query)['dn'][0]
+            dn = urllib.parse.parse_qs(urllib.parse.urlsplit(text).query)['dn'][0]
         except:
-            dn = message.text[:30] + " ..."
+            dn = text[:30] + " ..."
         
-        await message.reply(f"{callback._name_}('{dn}') = {ret}")
+        await reply(update, f"{callback.__name__}('{dn}') = {ret}")
+        return await _main_menu(update)
         
-        await serve_main_menu(message)
-        
-    return foo
+    return wrapper
 
-add_tv_show = prompt_magnet
-add_tv_show_handler = create_magnet_handler(Commands.add_tv_show, transmission_ctl.add_tv_show)
-add_movie = prompt_magnet
-add_movie_handler = create_magnet_handler(Commands.add_movie, transmission_ctl.add_movie)   
+add_tv_show = create_magnet_handler(Commands.add_tv_show, transmission_ctl.add_tv_show)
+add_movie = create_magnet_handler(Commands.add_movie, transmission_ctl.add_movie)   
 
-async def prompt_torrent(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-    markup.add("Cancel")
-    
-    for torrent_repr in enumerate_torrent_reprs():
-        markup.add(torrent_repr)
-        
-    await message.answer("Choose torrent:", reply_markup=markup)
+async def prompt_torrent(update: Update):
+    keyboard = [['Cancel']] + [[t] for t in iter_torrent_reprs()]
+
+    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True, selective=True)        
+    await reply(update, "Choose torrent:", reply_markup=markup)
     
 
 def create_torrent_handler(state, callback):
-    @dp.message_handler(state=state)
+
     @functools.wraps(callback)
-    async def foo(message):
-        choice = message.text
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        choice = update.message.text
         
-        if choice not in list(enumerate_torrent_reprs()):
-            await message.reply("Invalid input")
-            return await prompt_torrent(message)
+        if choice.strip().lower() == 'cancel':
+            return await _main_menu(update)
+
+        if choice not in list(iter_torrent_reprs()):
+            await prompt_torrent(update)
+            return state
             
         regex_torrent_id = r'^(\d+):.+?'
         match = re.match(regex_torrent_id, choice)
         
         if not match:
-            await message.reply("Internal error?")
-            return await prompt_torrent(message)
+            await reply(update, "Internal error?")
+            await prompt_torrent(update)
+            return state
         
         torrent_id = int(match.group(1))
         ret = callback(torrent_id)
    
-        await message.reply(f"{callback._name_}({torrent_id}) = {ret}")
-        await serve_main_menu(message) 
+        await reply(update, f"{callback.__name__}({torrent_id}) = {ret}")
+        return await _main_menu(update)
         
-    return foo
+    return wrapper
 
-start_torrent = prompt_torrent
-start_torrent_handler = create_torrent_handler(Commands.start_torrent, transmission_ctl.start_torrent)
-stop_torrent = prompt_torrent
-stop_torrent_handler = create_torrent_handler(Commands.stop_torrent, transmission_ctl.stop_torrent)
-delete_torrent = prompt_torrent
-delete_torrent_handler = create_torrent_handler(Commands.delete_torrent, transmission_ctl.delete_torrent)
+start_torrent = create_torrent_handler(Commands.start_torrent, transmission_ctl.start_torrent)
+stop_torrent = create_torrent_handler(Commands.stop_torrent, transmission_ctl.stop_torrent)
+delete_torrent = create_torrent_handler(Commands.delete_torrent, transmission_ctl.delete_torrent)
 
-if _name_ == '_main_':
-    executor.start_polling(dp, skip_updates=True)
+if __name__ == '__main__':
+    application = Application.builder().token(API_TOKEN).build()
+
+    scope = globals()
+    states = {}
+
+    for cmd in ['_authenticate', '_main_menu', '_process_main_menu_choice'] + \
+                list(iter_commands()):
+
+        cmd_enum = getattr(Commands, cmd, None)
+        cmd_callback = scope.get(cmd, None)
+
+        if cmd_enum is None or cmd_callback is None:
+            continue
+
+        states[cmd_enum] = [MessageHandler(filters.Regex('.*'), cmd_callback)]
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", _start)],
+
+        states=states,
+
+        fallbacks=[CommandHandler("cancel", _cancel)],
+    )  
+
+    application.add_handler(conv_handler)
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
