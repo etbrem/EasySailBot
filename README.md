@@ -24,6 +24,6 @@ DIR_MOVIES = '/plex/media/Movies'
 [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
 Transmission client [listening on port 9091](https://github.com/transmission/transmission/blob/main/docs/Web-Interface.md) (or change create_transmission_rpc() in transmission_ctl.py)  
-Make sure to check the "Web interface" when installing Transmission.  
+Make sure to check the "Web interface" when [installing Transmission](https://transmissionbt.com/download).  
 
 The "Storage Stats" command needs the linux binaries `df`, `head` and `grep`  
