@@ -1,4 +1,4 @@
-#/usr/bin/python3
+#!/usr/bin/python3
 import re
 import logging
 import functools
@@ -8,7 +8,7 @@ import urllib
 import subprocess
 
 import transmission_ctl
-
+import config
 
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import (
@@ -26,8 +26,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logging.getLogger('httpx').setLevel(logging.WARN)
 
 
-API_TOKEN = ''
-AUTHENTICATED_USER_IDS = []
+
+API_TOKEN = config.API_TOKEN
+AUTHENTICATED_USER_IDS = config.AUTHENTICATED_USER_IDS
+
 
 
 def execute_shell(cmd):
@@ -92,7 +94,9 @@ def to_camel_case(text):
 
 COMMANDS_BY_NAMES = {to_camel_case(cmd): cmd for cmd in iter_commands()}
 
-MAIN_MENU_MARKUP = ReplyKeyboardMarkup([[cmd] for cmd in COMMANDS_BY_NAMES], resize_keyboard=True, selective=True)
+COMMANDS_KEYBOARD_BUTTONS = [[cmd] for cmd in COMMANDS_BY_NAMES]
+
+MAIN_MENU_MARKUP = ReplyKeyboardMarkup(COMMANDS_KEYBOARD_BUTTONS, resize_keyboard=True, selective=True)
 REMOVE_MARKUP = ReplyKeyboardRemove()
 
 
@@ -133,7 +137,7 @@ async def _authenticate(update, context):
 async def _cancel(update, context):
     await reply(update, 'Cancelled.')
 
-    # Don't serve main menu to prevent canceling before authentication
+    # Don't serve main menu to prevent canceling during before authentication
     return Commands._start
 
 
@@ -203,8 +207,8 @@ def create_magnet_handler(state, callback):
         
     return wrapper
 
-add_tv_show = create_magnet_handler(Commands.add_tv_show, transmission_ctl.add_tv_show)
-add_movie = create_magnet_handler(Commands.add_movie, transmission_ctl.add_movie)   
+add_tv_show = create_magnet_handler(Commands.add_tv_show, lambda magnet: transmission_ctl.add_torrent_to_dir(magnet, config.DIR_TV_SHOW))
+add_movie = create_magnet_handler(Commands.add_movie, lambda magnet: transmission_ctl.add_torrent_to_dir(magnet, config.DIR_MOVIE))
 
 async def prompt_torrent(update: Update):
     keyboard = [['Cancel']] + [[t] for t in iter_torrent_reprs()]
