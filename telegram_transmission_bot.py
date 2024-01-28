@@ -26,12 +26,6 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logging.getLogger('httpx').setLevel(logging.WARN)
 
 
-
-API_TOKEN = config.API_TOKEN
-AUTHENTICATED_USER_IDS = config.AUTHENTICATED_USER_IDS
-
-
-
 def execute_shell(cmd):
     return subprocess.check_output(cmd, shell=True).decode()
 
@@ -121,15 +115,13 @@ async def reply(update: Update, text: str, reply_markup=REMOVE_MARKUP):
     await update.message.reply_text(text, reply_markup=reply_markup)
 
 async def _start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Conversation's entry point
-    """
+    """ Conversation's entry point """
      
-    if update.message.from_user.id in AUTHENTICATED_USER_IDS:
+    if update.message.from_user.id in config.AUTHENTICATED_USER_IDS:
+        logging.info(f'User {update.message.from_user.id} authenticated')
         await reply(update, f'User authenticated')
         return await _main_menu(update)
 
-    
     msg = f"UserID {update.message.from_user.id} needs to authenticate with a password"
     logging.info(msg)
     await reply(update, msg)
@@ -138,6 +130,8 @@ async def _start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return Commands._authenticate
 
 async def _authenticate(update, context):
+    ''' Check if the password was correct '''
+
     text = update.message.text
 
     password = get_password()
@@ -159,14 +153,14 @@ async def _cancel(update, context):
 
 
 async def _main_menu(update: Update, context=None):
+    ''' Send the commands menu then process the choice '''
+
     await reply(update, "Enter command:", reply_markup=MAIN_MENU_MARKUP)
     return Commands._process_main_menu_choice
 
 
 async def _process_main_menu_choice(update: Update, context):
-    """
-    Process user name
-    """
+    """ Process chosen command """
 
     choice = COMMANDS_BY_NAMES.get(update.message.text, None)
 
@@ -268,7 +262,7 @@ stop_torrent = create_torrent_handler(Commands.stop_torrent, transmission_ctl.st
 delete_torrent = create_torrent_handler(Commands.delete_torrent, transmission_ctl.delete_torrent)
 
 if __name__ == '__main__':
-    application = Application.builder().token(API_TOKEN).build()
+    application = Application.builder().token(config.API_TOKEN).build()
 
     scope = globals()
     states = {}
