@@ -21,6 +21,7 @@ DIR_MOVIES = '/plex/media/Movies'
 ## Requirements
 `python3 -m pip install transmissionrpc python-telegram-bot`  
 
+[Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
 Transmission client [listening on port 9091](https://github.com/transmission/transmission/blob/main/docs/Web-Interface.md) (or change create_transmission_rpc() in transmission_ctl.py)  
 Make sure to check the "Web interface" when installing Transmission.  
