@@ -3,7 +3,7 @@ Control your Transmission torrent client using a telegram bot
 
 `python3 transmission_telegram_bot.py`
 
-# Configuration
+## Configuration
 
 In telegram_transmission_bot.py set the variables `API_TOKEN` and `AUTHENTICATED_USER_IDS`.  
 
