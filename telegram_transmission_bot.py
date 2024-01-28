@@ -91,9 +91,7 @@ def to_camel_case(text):
 
 COMMANDS_BY_NAMES = {to_camel_case(cmd): cmd for cmd in iter_commands()}
 
-COMMANDS_KEYBOARD_BUTTONS = [[cmd] for cmd in COMMANDS_BY_NAMES]
-
-MAIN_MENU_MARKUP = ReplyKeyboardMarkup(COMMANDS_KEYBOARD_BUTTONS, resize_keyboard=True, selective=True)
+MAIN_MENU_MARKUP = ReplyKeyboardMarkup([[cmd] for cmd in COMMANDS_BY_NAMES], resize_keyboard=True, selective=True)
 REMOVE_MARKUP = ReplyKeyboardRemove()
 
 
@@ -134,7 +132,7 @@ async def _authenticate(update, context):
 async def _cancel(update, context):
     await reply(update, 'Cancelled.')
 
-    # Don't serve main menu to prevent canceling during before authentication
+    # Don't serve main menu to prevent canceling before authentication
     return Commands._start
 
 
