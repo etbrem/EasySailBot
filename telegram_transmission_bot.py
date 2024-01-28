@@ -102,34 +102,51 @@ REMOVE_MARKUP = ReplyKeyboardRemove()
 
 PASSWORD = ''
 
-async def reply(update: Update, text: str, reply_markup=REMOVE_MARKUP):
-    await update.message.reply_text(text, reply_markup=reply_markup)
-
-
-async def _start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Conversation's entry point
-    """
+def get_password():
     global PASSWORD
-     
-    if update.message.from_user.id in AUTHENTICATED_USER_IDS:
-        return await _main_menu(update)
+    return PASSWORD
 
+def new_password():
+    global PASSWORD
+    
     PASSWORD = random_string(alphabet=string.digits)
     
     logging.critical("="*30)
     logging.critical(f"PASSWORD: {PASSWORD}")
     logging.critical("="*30)
 
-    await reply(update, "Authenticate:")
+    return PASSWORD
+
+async def reply(update: Update, text: str, reply_markup=REMOVE_MARKUP):
+    await update.message.reply_text(text, reply_markup=reply_markup)
+
+async def _start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Conversation's entry point
+    """
+     
+    if update.message.from_user.id in AUTHENTICATED_USER_IDS:
+        await reply(update, f'User authenticated')
+        return await _main_menu(update)
+
+    
+    msg = f"UserID {update.message.from_user.id} needs to authenticate with a password"
+    logging.info(msg)
+    await reply(update, msg)
+    
+    new_password()
     return Commands._authenticate
 
 async def _authenticate(update, context):
     text = update.message.text
 
-    logging.info(f"PASSWORD ({PASSWORD}) ATTEMPT {bool(text == PASSWORD)}: USERID={update.message.from_user.id} '{text}'")
+    password = get_password()
+    success = text == password
 
-    if text != PASSWORD:
+    logging.info(f"PASSWORD ({password}) ATTEMPT {success}: USERID={update.message.from_user.id} '{text}'")
+
+    if not success:
+        new_password()
         return ConversationHandler.END
         
     return await _main_menu(update)
@@ -153,7 +170,7 @@ async def _process_main_menu_choice(update: Update, context):
 
     choice = COMMANDS_BY_NAMES.get(update.message.text, None)
 
-    logging.info(f"CHOICE: {choice}")
+    logging.info(f"{update.message.from_user.id} chose: {choice}")
 
     if choice is None:
         return await _main_menu(update)
