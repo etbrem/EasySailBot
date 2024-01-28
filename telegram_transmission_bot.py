@@ -26,8 +26,8 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logging.getLogger('httpx').setLevel(logging.WARN)
 
 
-AUTHENTICATED_USER_IDS = []
 API_TOKEN = ''
+AUTHENTICATED_USER_IDS = []
 
 
 def execute_shell(cmd):
