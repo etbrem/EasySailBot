@@ -152,8 +152,7 @@ async def _process_main_menu_choice(update: Update, context):
     logging.info(f"CHOICE: {choice}")
 
     if choice is None:
-        await reply(update, "Enter command:", reply_markup=MAIN_MENU_MARKUP)
-        return Commands._process_main_menu_choice
+        return await _main_menu(update)
 
     else:
         scope = globals()
