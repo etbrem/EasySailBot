@@ -23,6 +23,7 @@ from telegram.ext import (
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.getLogger('httpx').setLevel(logging.WARN)
 
 
 AUTHENTICATED_USER_IDS = []
