@@ -53,15 +53,13 @@ def make_state(state_name):
 
     return state
 
-COMMANDS = [
-            'add_tv_show', 'add_movie', 
-            'list_torrents', 
-            'start_torrent','stop_torrent',
-            'delete_torrent',
-            'list_torrent_files', 'toggle_torrent_file',
-            'toggle_all_torrent_files',
-            'storage_stats', ] 
-
+COMMANDS_LAYOUT = [
+            ['add_tv_show', 'add_movie'], 
+            ['start_torrent','stop_torrent', 'delete_torrent'],
+            ['list_torrents', 'list_torrent_files'],
+            ['enable_all_torrent_files', 'toggle_all_torrent_files', 'toggle_torrent_file'],
+            ['storage_stats']
+ ] 
 
 INTERNAL_STATES = ['_start', '_authenticate', '_main_menu',
             '_process_main_menu_choice',
@@ -103,10 +101,41 @@ def iter_torrent_reprs():
 # Telegram bot utils
 ######################################################################
 
-COMMANDS_BY_NAMES = {to_camel_case(cmd): cmd for cmd in COMMANDS}
-
-MAIN_MENU_MARKUP = ReplyKeyboardMarkup([[cmd] for cmd in COMMANDS_BY_NAMES], resize_keyboard=True, selective=True)
 REMOVE_MARKUP = ReplyKeyboardRemove()
+
+def repr_action(update, text):
+    user_id = update.message.from_user.id
+    msg = f'UserID {user_id} {text}'
+    return msg
+
+def log_on_call(enter_msg=None, exit_msg=None):
+
+    def decorator(func):
+        return func  # Disable for now
+
+        if enter_msg is None and exit_msg is None:
+            l_enter_msg = f'entered {func.__name__}'
+            l_exit_msg = f'exited {func.__name__}'
+        else:
+            l_enter_msg = enter_msg
+            l_exit_msg = exit_msg
+
+        @functools.wraps(func)
+        async def wrapper(update, *args, **kwargs):
+            if l_enter_msg:
+                msg = repr_action(update, l_enter_msg)
+                logging.info(msg)
+            
+            ret = await func(update, *args, **kwargs)
+
+            if l_exit_msg:
+                msg = repr_action(update, l_exit_msg)
+                logging.info(msg)
+
+            return ret
+
+        return wrapper
+    return decorator
 
 def is_cancel(update):
     try:
@@ -120,18 +149,47 @@ def cancelable(func):
     async def wrapper(update, context, *args, **kwargs):
 
         if is_cancel(update):
+            logging.info(repr_action(update, 'canceled'))
             return await _main_menu(update)
 
         return await func(update, context, *args, **kwargs)
 
     return wrapper
 
+
+
 async def reply(update: Update, text: str, reply_markup=REMOVE_MARKUP):
     await update.message.reply_text(text, reply_markup=reply_markup)
+
+async def multi_reply(update: Update, label: str, 
+                      values, with_index=True,
+                      reply_markup=REMOVE_MARKUP):
+
+    # Check if values is wanted iterable
+    if isinstance(values, (list, map, types.GeneratorType)):
+
+        for i, v in enumerate(values):
+            sublabel = f'[{i}]' if with_index else ''
+            await reply(update, f"{label}{sublabel} = {v}", reply_markup=reply_markup)
+
+    else:
+        await reply(update, f"{label} = {values}", reply_markup=reply_markup)
+
 
 ######################################################################
 # Authentication and main menu utils
 ######################################################################
+
+COMMANDS = [cmd for row in COMMANDS_LAYOUT for cmd in row]
+COMMANDS_BY_NAMES = {to_camel_case(cmd): cmd for cmd in COMMANDS}
+
+COMMANDS_LAYOUT_CAMELCASE = [[]] * len(COMMANDS_LAYOUT)
+
+for i, row in enumerate(COMMANDS_LAYOUT):
+    COMMANDS_LAYOUT_CAMELCASE[i] = [to_camel_case(cmd) for cmd in row]
+
+
+MAIN_MENU_MARKUP = ReplyKeyboardMarkup(COMMANDS_LAYOUT_CAMELCASE, resize_keyboard=True, selective=True)
 
 PASSWORD = ''
 
@@ -154,10 +212,10 @@ async def _start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """ Conversation's entry point """
      
     if update.message.from_user.id in config.AUTHENTICATED_USER_IDS:
-        logging.info(f'User {update.message.from_user.id} authenticated')
+        logging.info(repr_action(update, 'authenticated'))
         return await _main_menu(update)
 
-    msg = f"UserID {update.message.from_user.id} needs to authenticate with a password"
+    msg = repr_action(update, 'requires a password')
     logging.info(msg)
     await reply(update, msg)
     
@@ -172,7 +230,8 @@ async def _authenticate(update, context):
     password = get_password()
     success = text == password
 
-    logging.info(f"PASSWORD ({password}) ATTEMPT {success}: USERID={update.message.from_user.id} '{text}'")
+    msg = repr_action(update, f"'{text}' =='{PASSWORD}' {success}")
+    logging.info(msg)
 
     if not success:
         new_password()
@@ -198,7 +257,8 @@ async def _process_main_menu_choice(update: Update, context):
 
     choice = COMMANDS_BY_NAMES.get(update.message.text, None)
 
-    logging.info(f"{update.message.from_user.id} chose: {choice}")
+    msg = repr_action(update, f'chose {choice}')
+    logging.info(msg)
 
     if choice is None:
         return await _main_menu(update)
@@ -238,7 +298,7 @@ def choice_to_torrent_id(choice):
     if choice not in list(iter_torrent_reprs()):
         return
 
-    regex_torrent_id = r'^(\d+):.+?'
+    regex_torrent_id = r'^(\d+):.*'
     match = re.match(regex_torrent_id, choice)
     
     if not match:
@@ -248,7 +308,7 @@ def choice_to_torrent_id(choice):
     return torrent_id
     
 def choice_to_torrent_file_id(choice):
-    regex_torrent_id = r'^(\d+).(\d+):.+?'
+    regex_torrent_id = r'^(\d+).(\d+):.*'
     match = re.match(regex_torrent_id, choice)
     
     if not match:
@@ -283,6 +343,7 @@ def choice_to_torrent_file(choice):
 def create_magnet_handler(state_name, callback):
     state = make_state(state_name)
 
+    @log_on_call(f'entered {state_name}', f'exited {state_name}')
     @cancelable
     @functools.wraps(callback)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -299,7 +360,12 @@ def create_magnet_handler(state_name, callback):
         except:
             dn = text[:30] + " ..."
         
-        await reply(update, f"{state_name}('{dn}') = {ret}")
+        label = f"{state_name}('{dn}')"
+
+        msg = repr_action(update, label)
+        logging.info(msg)
+
+        await multi_reply(update, label, ret)
         return await _main_menu(update)
     
     CALLBACKS[state_name] = wrapper
@@ -309,6 +375,7 @@ def create_magnet_handler(state_name, callback):
 def create_torrent_handler(state_name, callback):
     state = make_state(state_name)
 
+    @log_on_call(f'entered {state_name} torrent selection', f'exited {state_name} torrent selection')
     @cancelable
     @functools.wraps(callback)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -320,16 +387,14 @@ def create_torrent_handler(state_name, callback):
             await prompt_torrent(update)
             return state    
 
+        label = f'{state_name}({torrent_id})'
+        
+        msg = repr_action(update, label)
+        logging.info(msg)
+
         ret = callback(torrent_id)
 
-        # ret is iterable
-        if isinstance(ret, (list, map, sorted, types.GeneratorType)):
-            for r in ret:
-                await reply(update, f"{state_name}({torrent_id}) = {r}")
-
-        else:
-            await reply(update, f"{state_name}({torrent_id}) = {ret}")
-
+        await multi_reply(update, label, ret)
         return await _main_menu(update)
 
     CALLBACKS[state_name] = wrapper
@@ -341,7 +406,8 @@ def create_torrent_file_handler(state_name, callback):
 
     process_state_name = f'_{state_name}_torrent_file_choice_handler'
     process_state = make_state(process_state_name)
- 
+
+    @log_on_call(f'entered {state_name} torrent selection', f'exited {state_name} torrent selection')
     @cancelable
     async def _prompt_torrent_files(update, context):
         choice = update.message.text
@@ -355,6 +421,7 @@ def create_torrent_file_handler(state_name, callback):
         await prompt_torrent_files(update, torrent_id)
         return process_state
 
+    @log_on_call(f'entered {state_name} file selection', f'exited {state_name} file selection')
     @cancelable
     @functools.wraps(callback)
     async def _process_torrent_file_choice(update, context):
@@ -365,9 +432,14 @@ def create_torrent_file_handler(state_name, callback):
             await reply(update, 'Error choosing torrent file')
             return await _main_menu(update)
 
+        label = f"{state_name}({tf.torrent_id}.{tf.file_id})"
+
+        msg = repr_action(update, label)
+        logging.info(msg)
+
         ret = callback(tf)
         
-        await reply(update, f"{state_name}({tf.torrent_id}.{tf.file_id}) = {ret}")
+        await multi_reply(update, label, ret)
         return await _main_menu(update)
     
     CALLBACKS[state_name] = _prompt_torrent_files
@@ -380,12 +452,14 @@ def create_torrent_file_handler(state_name, callback):
 # Commands implementation
 ######################################################################
 
+@log_on_call()
 async def list_torrents(update, context):
     for torrent_repr in transmission_ctl.iter_torrents(transformation=transmission_ctl.torrent_status_repr):
         await reply(update, torrent_repr)
         
     return await _main_menu(update)
     
+@log_on_call()
 async def storage_stats(update, context):
     await reply(update, execute_shell("df -h | head -n 1; df -h | grep /plex/media"))
     return await _main_menu(update)
@@ -406,6 +480,10 @@ create_torrent_handler('list_torrent_files',
         )
     )
 
+create_torrent_handler('enable_all_torrent_files',
+    # TODO: Do this in one request
+    lambda torrent_id: map(transmission_ctl.toggle_torrent_file, transmission_ctl.iter_torrent_files(torrent_id))
+    )
 create_torrent_handler('toggle_all_torrent_files',
     # TODO: Do this in one request
     lambda torrent_id: map(transmission_ctl.toggle_torrent_file, transmission_ctl.iter_torrent_files(torrent_id))
@@ -433,7 +511,7 @@ if __name__ == '__main__':
         states[state_enum] = [MessageHandler(filters.Regex('.*'), state_callback)]
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", _start), MessageHandler(filters.Regex('.*'), _start)],
+        entry_points=[MessageHandler(filters.Regex('.*'), _start)],
 
         states=states,
 
@@ -441,5 +519,5 @@ if __name__ == '__main__':
     )  
 
     application.add_handler(conv_handler)
-    application.run_polling(poll_interval=3, allowed_updates=Update.ALL_TYPES)
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
