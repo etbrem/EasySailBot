@@ -98,11 +98,17 @@ def make_torrent(torrent_or_id):
 
 def start_torrent(torrent):
     torrent = make_torrent(torrent)
-    return torrent.start()
+    torrent.start()
+    
+    torrent = make_torrent(torrent.id)
+    return torrent.status != 'stopped'
 
 def stop_torrent(torrent):
     torrent = make_torrent(torrent)
-    return torrent.stop()
+    torrent.stop()
+
+    torrent = make_torrent(torrent.id)
+    return torrent.status == 'stopped'
 
 def delete_torrent(torrent):
     torrent = make_torrent(torrent)
@@ -147,6 +153,8 @@ def iter_torrent_files(torrent):
 def toggle_torrent_file(torrent_file):
     tc = get_transmission_rpc()
 
-    return tc.set_files({ 
-        torrent_file.torrent_id: { torrent_file.file_id: {'selected': not torrent_file.selected} }
+    new_value = not torrent_file.selected
+    tc.set_files({ 
+        torrent_file.torrent_id: { torrent_file.file_id: {'selected': new_value} }
     })
+    return new_value
