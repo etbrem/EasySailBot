@@ -3,6 +3,20 @@ Control your Transmission torrent client using a telegram bot
 
 `python3 transmission_telegram_bot.py`
 
+#### Supported commands:
+
+- Add Tv Show
+- Add Movie
+- List Torrents
+- Start Torrent
+- Stop Torrent
+- Delete Torrent
+- List Torrent Files
+- Toggle Torrent File
+- Toggle All Torrent Files
+- Storage Stats (linux only)
+
+
 ## Configuration
 
 In config.py set the variables `API_TOKEN`, `AUTHENTICATED_USER_IDS`, `DIR_TV_SHOWS`, `DIR_MOVIES`.  
