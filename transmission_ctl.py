@@ -38,17 +38,16 @@ def get_transmission_rpc():
 
     return TRANSMISSION_RPC_OBJECT
 
-def add_torrent_to_dir(magnet, download_dir):
-    print("add_torrent_to_dir", download_dir, magnet)
+def add_magnet(magnet, download_dir):
+    print("add_magnet", download_dir, magnet)
 
     tc = get_transmission_rpc()
 
     torrent = tc.add_torrent(magnet, download_dir=download_dir)
     return torrent_repr(torrent)
 
-def iter_torrents(transformation=lambda t: t):
-    for torrent in get_transmission_rpc().get_torrents():
-        yield transformation(torrent)
+def iter_torrents():
+    return get_transmission_rpc().get_torrents()
 
 
 ######################################################################
@@ -57,11 +56,11 @@ def iter_torrents(transformation=lambda t: t):
 
 def get_torrent_size(torrent):
     torrent = make_torrent(torrent)
-    return sum(f['size'] for f in torrent.files().values())
+    return sum(f['size'] for f in torrent.files().values() if f['selected'])
 
 def get_torrent_completed(torrent):
     torrent = make_torrent(torrent)
-    return sum(f['completed'] for f in torrent.files().values())
+    return sum(f['completed'] for f in torrent.files().values() if f['selected'])
 
 def torrent_repr(torrent):
     if not torrent:
@@ -82,7 +81,10 @@ def torrent_status_repr(torrent):
     torrent_completed_str = convert_size(torrent_completed)
     torrent_size_str = convert_size(torrent_size)
 
-    torrent_percent = int(100.0 * torrent_completed / torrent_size )
+    if torrent_size:
+        torrent_percent = int(100.0 * torrent_completed / torrent_size )
+    else:
+        torrent_percent = '??'
 
     return '{torrent_id}: {torrent_status} {torrent_percent}% {torrent_completed_str}/{torrent_size_str}\n{torrent_name}'.format(**locals())
 
@@ -134,14 +136,17 @@ class TorrentFile(object):
         for property_name in self.PROPERTY_NAMES:
             setattr(self, property_name, properties.get(property_name))
 
-        self.percent = int(100 * float(self.completed) / self.size)
+        if self.size:
+            self.percent = int(100 * float(self.completed) / self.size)
+        else:
+            self.percent = 100
 
     def __str__(self):
         return f'{self.torrent_id}.{self.file_id}: {self.name}'
 
     def __repr__(self):
         selected_status = ' DISABLED' if not self.selected else ''
-        return str(self) + f' {self.percent}% {convert_size(self.size)}{selected_status}'
+        return str(self) + f'\n{self.percent}% {convert_size(self.size)}{selected_status}'
 
 def iter_torrent_files(torrent):
     torrent = make_torrent(torrent)
@@ -149,12 +154,17 @@ def iter_torrent_files(torrent):
     for file_id, properties in torrent.files().items():
         yield TorrentFile(torrent.id, file_id, properties)
 
+def update_torrent_files(torrent, 
+                        filter_cb = lambda torrent_file: True,
+                        update_cb = lambda torrent_file: {'selected': not torrent_file.selected}
+                        ):
+    torrent = make_torrent(torrent)
 
-def toggle_torrent_file(torrent_file):
-    tc = get_transmission_rpc()
+    file_updates = {}
+    for torrent_file in iter_torrent_files(torrent):
 
-    new_value = not torrent_file.selected
-    tc.set_files({ 
-        torrent_file.torrent_id: { torrent_file.file_id: {'selected': new_value} }
-    })
-    return new_value
+        if filter_cb(torrent_file):
+            file_updates[torrent_file.file_id] = update_cb(torrent_file)
+
+    get_transmission_rpc().set_files({torrent.id: file_updates})
+    return file_updates
