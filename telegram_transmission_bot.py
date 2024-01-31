@@ -53,21 +53,17 @@ def make_state(state_name):
 
     return state
 
-COMMANDS_LAYOUT = [
-            ['add_tv_show', 'add_movie'], 
-            ['start_torrent','stop_torrent', 'delete_torrent'],
-            ['list_torrents', 'list_torrent_files'],
-            ['enable_all_torrent_files', 'toggle_all_torrent_files', 'toggle_torrent_file'],
-            ['storage_stats']
- ] 
 
-INTERNAL_STATES = ['_start', '_authenticate', '_main_menu',
-            '_process_main_menu_choice',
-            '_cancel']
+INTERNAL_STATES = ['_start', '_authenticate', '_cancel',
+                '_main_menu', '_process_main_menu_choice']
+
 for state in INTERNAL_STATES:
     make_state(state)
 
-def get_scope():
+def get_states():
+    return STATES
+
+def get_callbacks():
     scope = globals().copy()
     scope.update(CALLBACKS)
     return scope
@@ -93,8 +89,12 @@ def to_camel_case(text):
 
     return ret[:-1]
 
-def iter_torrent_reprs():
-    return transmission_ctl.iter_torrents(transformation=transmission_ctl.torrent_repr)
+def iter_torrent_reprs(status=False):
+    if status:
+        cb = transmission_ctl.torrent_status_repr
+    else:
+        cb = transmission_ctl.torrent_repr
+    return map(cb, transmission_ctl.iter_torrents())
 
 
 ######################################################################
@@ -102,6 +102,12 @@ def iter_torrent_reprs():
 ######################################################################
 
 REMOVE_MARKUP = ReplyKeyboardRemove()
+
+def flatten_layout(layout):
+    return [x for row in layout for x in row]
+
+def map_layout(callback, layout):
+    return [[callback(x) for x in row] for row in layout]
 
 def repr_action(update, text):
     user_id = update.message.from_user.id
@@ -156,13 +162,11 @@ def cancelable(func):
 
     return wrapper
 
-
-
 async def reply(update: Update, text: str, reply_markup=REMOVE_MARKUP):
     await update.message.reply_text(text, reply_markup=reply_markup)
 
 async def multi_reply(update: Update, label: str, 
-                      values, with_index=True,
+                      values, with_index=False,
                       reply_markup=REMOVE_MARKUP):
 
     # Check if values is wanted iterable
@@ -180,16 +184,17 @@ async def multi_reply(update: Update, label: str,
 # Authentication and main menu utils
 ######################################################################
 
-COMMANDS = [cmd for row in COMMANDS_LAYOUT for cmd in row]
-COMMANDS_BY_NAMES = {to_camel_case(cmd): cmd for cmd in COMMANDS}
+COMMANDS_LAYOUT = [
+    ['add_tv_show', 'add_movie'], 
+    ['start_torrent','stop_torrent', 'delete_torrent'],
+    ['list_torrents', 'list_torrent_files'],
+    ['disable_all_torrent_files', 'toggle_all_torrent_files', 'toggle_torrent_file'],
+    ['storage_stats']
+] 
 
-COMMANDS_LAYOUT_CAMELCASE = [[]] * len(COMMANDS_LAYOUT)
+COMMANDS_BY_NAMES = {to_camel_case(cmd): cmd for cmd in flatten_layout(COMMANDS_LAYOUT)}
 
-for i, row in enumerate(COMMANDS_LAYOUT):
-    COMMANDS_LAYOUT_CAMELCASE[i] = [to_camel_case(cmd) for cmd in row]
-
-
-MAIN_MENU_MARKUP = ReplyKeyboardMarkup(COMMANDS_LAYOUT_CAMELCASE, resize_keyboard=True, selective=True)
+MAIN_MENU_MARKUP = ReplyKeyboardMarkup(map_layout(to_camel_case, COMMANDS_LAYOUT), resize_keyboard=True, selective=True)
 
 PASSWORD = ''
 
@@ -220,7 +225,7 @@ async def _start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await reply(update, msg)
     
     new_password()
-    return STATES.get('_authenticate')
+    return make_state('_authenticate')
 
 async def _authenticate(update, context):
     ''' Check if the password was correct '''
@@ -243,13 +248,13 @@ async def _cancel(update, context):
     await reply(update, 'Cancelled.')
 
     # Don't serve main menu to prevent canceling during before authentication
-    return STATES.get('_start')
+    return make_state('_start')
 
 async def _main_menu(update: Update, context=None):
     ''' Send the commands menu then process the choice '''
 
     await reply(update, "Enter command:", reply_markup=MAIN_MENU_MARKUP)
-    return STATES.get('_process_main_menu_choice')
+    return make_state('_process_main_menu_choice')
 
 
 async def _process_main_menu_choice(update: Update, context):
@@ -264,8 +269,7 @@ async def _process_main_menu_choice(update: Update, context):
         return await _main_menu(update)
 
     else:
-        scope = get_scope()
-        callback = scope.get(choice, None)
+        callback = get_callbacks().get(choice, None)
 
         if callback is not None:
             return await callback(update, context)
@@ -340,7 +344,16 @@ def choice_to_torrent_file(choice):
 # Handler creation utils
 ######################################################################
 
+'''
+Handlers are in charge of prompting for input/selection
+and passing the data onto a callback to handle the request.
+
+# TODO: init_state() before wrapper() so prompt doesnt always fail first time (currently a feature)
+'''
+
 def create_magnet_handler(state_name, callback):
+    ''' Prompt for magnet URL and call callback() with the URL '''
+
     state = make_state(state_name)
 
     @log_on_call(f'entered {state_name}', f'exited {state_name}')
@@ -353,17 +366,17 @@ def create_magnet_handler(state_name, callback):
             await prompt_magnet(update)
             return state
             
-        ret = callback(text)
-        
         try:
-            dn = urllib.parse.parse_qs(urllib.parse.urlsplit(text).query)['dn'][0]
+            magnet_name = urllib.parse.parse_qs(urllib.parse.urlsplit(text).query)['dn'][0]
         except:
-            dn = text[:30] + " ..."
+            magnet_name = text[:30] + " ..."
         
-        label = f"{state_name}('{dn}')"
+        label = f"{state_name}('{magnet_name}')"
 
         msg = repr_action(update, label)
         logging.info(msg)
+
+        ret = callback(text)
 
         await multi_reply(update, label, ret)
         return await _main_menu(update)
@@ -373,6 +386,8 @@ def create_magnet_handler(state_name, callback):
     return wrapper
     
 def create_torrent_handler(state_name, callback):
+    ''' Prompt for torrent ID and call callback() with ID '''
+
     state = make_state(state_name)
 
     @log_on_call(f'entered {state_name} torrent selection', f'exited {state_name} torrent selection')
@@ -402,6 +417,8 @@ def create_torrent_handler(state_name, callback):
 
 
 def create_torrent_file_handler(state_name, callback):
+    ''' Prompt for torrent ID, then prompt for torrent file ID and call callback() with torrent file object '''
+
     prompt_state = make_state(state_name)
 
     process_state_name = f'_{state_name}_torrent_file_choice_handler'
@@ -452,11 +469,13 @@ def create_torrent_file_handler(state_name, callback):
 # Commands implementation
 ######################################################################
 
+# 
+# Basic command handlers
 @log_on_call()
 async def list_torrents(update, context):
-    for torrent_repr in transmission_ctl.iter_torrents(transformation=transmission_ctl.torrent_status_repr):
+    for torrent_repr in iter_torrent_reprs(status=True):
         await reply(update, torrent_repr)
-        
+
     return await _main_menu(update)
     
 @log_on_call()
@@ -464,13 +483,17 @@ async def storage_stats(update, context):
     await reply(update, execute_shell("df -h | head -n 1; df -h | grep /plex/media"))
     return await _main_menu(update)
 
+#
+# Magnet command handlers
+create_magnet_handler('add_tv_show', lambda magnet: transmission_ctl.add_magnet(magnet, config.DIR_TV_SHOWS))
+create_magnet_handler('add_movie', lambda magnet: transmission_ctl.add_magnet(magnet, config.DIR_MOVIES))
 
-create_magnet_handler('add_tv_show', lambda magnet: transmission_ctl.add_torrent_to_dir(magnet, config.DIR_TV_SHOWS))
-create_magnet_handler('add_movie', lambda magnet: transmission_ctl.add_torrent_to_dir(magnet, config.DIR_MOVIES))
-
+# 
+# Torrent command handlers
 create_torrent_handler('start_torrent', transmission_ctl.start_torrent)
 create_torrent_handler('stop_torrent', transmission_ctl.stop_torrent)
 create_torrent_handler('delete_torrent', transmission_ctl.delete_torrent)
+
 create_torrent_handler('list_torrent_files',
 
     # Map sorted torrent files to their representation
@@ -478,34 +501,41 @@ create_torrent_handler('list_torrent_files',
         repr,
         sorted(transmission_ctl.iter_torrent_files(torrent_id), key=lambda tf: tf.name)
         )
-    )
-
-create_torrent_handler('enable_all_torrent_files',
-    # TODO: Do this in one request
-    lambda torrent_id: map(transmission_ctl.toggle_torrent_file, transmission_ctl.iter_torrent_files(torrent_id))
-    )
+)
+create_torrent_handler('disable_all_torrent_files',
+    lambda torrent_id: transmission_ctl.update_torrent_files( torrent_id, update_cb = lambda tf: {'selected': False} )
+)
 create_torrent_handler('toggle_all_torrent_files',
-    # TODO: Do this in one request
-    lambda torrent_id: map(transmission_ctl.toggle_torrent_file, transmission_ctl.iter_torrent_files(torrent_id))
-    )
+    lambda torrent_id: transmission_ctl.update_torrent_files( torrent_id, update_cb = lambda tf: {'selected': not tf.selected} )
+)
 
-create_torrent_file_handler('toggle_torrent_file', transmission_ctl.toggle_torrent_file)
+
+# 
+# Torrent file command handlers
+create_torrent_file_handler('toggle_torrent_file',
+
+    lambda torrent_file: transmission_ctl.update_torrent_files( 
+                            torrent_file.torrent_id, 
+                            update_cb = lambda tf: {'selected': not tf.selected},
+                            filter_cb = lambda tf: tf.file_id == torrent_file.file_id
+                        )
+)
 
 
 
 if __name__ == '__main__':
     application = Application.builder().token(config.API_TOKEN).build()
 
-    scope = get_scope()
+    callbacks = get_callbacks()
     states = {}
 
-    for state in STATES:
+    for state_name in get_states():
 
-        state_enum = make_state(state)
-        state_callback = scope.get(state, None)
+        state_enum = make_state(state_name)
+        state_callback = callbacks.get(state_name, None)
 
         if state_enum is None or state_callback is None:
-            logging.error(f'Error registering {state} ({state_enum}) = {state_callback}')
+            logging.error(f'Error registering {state_name} ({state_enum}) = {state_callback}')
             continue
 
         states[state_enum] = [MessageHandler(filters.Regex('.*'), state_callback)]
