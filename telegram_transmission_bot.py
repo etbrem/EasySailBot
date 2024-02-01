@@ -60,28 +60,28 @@ async def exit_main_menu(update, context):
 
 #
 # Magnet command handlers
-MAIN_MENU.create_magnet_handler('add_tv_show', lambda magnet: transmission_ctl.add_magnet(magnet, config.DIR_TV_SHOWS))
-MAIN_MENU.create_magnet_handler('add_movie', lambda magnet: transmission_ctl.add_magnet(magnet, config.DIR_MOVIES))
+MAIN_MENU.create_magnet_handler('add_tv_show', lambda magnet: transmission_utils.add_magnet(magnet, config.DIR_TV_SHOWS))
+MAIN_MENU.create_magnet_handler('add_movie', lambda magnet: transmission_utils.add_magnet(magnet, config.DIR_MOVIES))
 
 # 
 # Torrent command handlers
-MAIN_MENU.create_torrent_handler('start_torrent', transmission_ctl.start_torrent)
-MAIN_MENU.create_torrent_handler('stop_torrent', transmission_ctl.stop_torrent)
-MAIN_MENU.create_torrent_handler('delete_torrent', transmission_ctl.delete_torrent)
+MAIN_MENU.create_torrent_handler('start_torrent', transmission_utils.start_torrent)
+MAIN_MENU.create_torrent_handler('stop_torrent', transmission_utils.stop_torrent)
+MAIN_MENU.create_torrent_handler('delete_torrent', transmission_utils.delete_torrent)
 
 MAIN_MENU.create_torrent_handler('list_torrent_files',
 
     # Map sorted torrent files to their representation
     lambda torrent_id: map(
         repr,
-        sorted(transmission_ctl.iter_torrent_files(torrent_id), key=lambda tf: tf.name)
+        sorted(transmission_utils.iter_torrent_files(torrent_id), key=lambda tf: tf.name)
         )
 )
 MAIN_MENU.create_torrent_handler('disable_all_torrent_files',
-    lambda torrent_id: transmission_ctl.update_torrent_files( torrent_id, update_cb = lambda tf: {'selected': False} )
+    lambda torrent_id: transmission_utils.update_torrent_files( torrent_id, update_cb = lambda tf: {'selected': False} )
 )
 MAIN_MENU.create_torrent_handler('toggle_all_torrent_files',
-    lambda torrent_id: transmission_ctl.update_torrent_files( torrent_id, update_cb = lambda tf: {'selected': not tf.selected} )
+    lambda torrent_id: transmission_utils.update_torrent_files( torrent_id, update_cb = lambda tf: {'selected': not tf.selected} )
 )
 
 
@@ -89,7 +89,7 @@ MAIN_MENU.create_torrent_handler('toggle_all_torrent_files',
 # Torrent file command handlers
 MAIN_MENU.create_torrent_file_handler('toggle_torrent_file',
 
-    lambda torrent_file: transmission_ctl.update_torrent_files( 
+    lambda torrent_file: transmission_utils.update_torrent_files( 
                             torrent_file.torrent_id, 
                             update_cb = lambda tf: {'selected': not tf.selected},
                             filter_cb = lambda tf: tf.file_id == torrent_file.file_id
