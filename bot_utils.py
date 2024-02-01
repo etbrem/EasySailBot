@@ -7,8 +7,8 @@ import urllib
 import subprocess
 import types
 
-import transmission_ctl
 import config
+import transmission_utils
 
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import (
@@ -383,15 +383,15 @@ class TorrentMenu(Menu):
     @staticmethod
     def iter_torrent_reprs(status=False):
         if status:
-            cb = transmission_ctl.torrent_status_repr
+            cb = transmission_utils.torrent_status_repr
         else:
-            cb = transmission_ctl.torrent_repr
-        return map(cb, transmission_ctl.iter_torrents())
+            cb = transmission_utils.torrent_repr
+        return map(cb, transmission_utils.iter_torrents())
 
     @staticmethod
     def iter_torrent_files(torrent_id):
         # Torrent files sorted by file name
-        return sorted(transmission_ctl.iter_torrent_files(torrent_id), key=lambda tf: tf.name)
+        return sorted(transmission_utils.iter_torrent_files(torrent_id), key=lambda tf: tf.name)
 
     ###############
     # Prompt helpers
@@ -455,7 +455,7 @@ class TorrentMenu(Menu):
 
         torrent_id, file_id = tf
 
-        for other in transmission_ctl.iter_torrent_files(torrent_id):
+        for other in transmission_utils.iter_torrent_files(torrent_id):
             if other.file_id == file_id:
                 return other
 
