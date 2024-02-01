@@ -8,8 +8,8 @@ from bot_utils import *
 
 MAIN_MENU = AuthenticatedTorrentMenu(
     name='main', 
-    add_to_authenticated_users=False,
-    authenticated_user_ids=config.AUTHENTICATED_USER_IDS,
+    add_to_authenticated_users=False,  # If a user authenticates with password don't add them to authenticateduserids
+    authenticated_user_ids=config.AUTHENTICATED_USER_IDS,  # Pre-authenticated userIDs 
     layout=[
     ['add_tv_show', 'add_movie'], 
     ['start_torrent','stop_torrent', 'delete_torrent'],
@@ -29,7 +29,7 @@ TEST_MENU = TorrentMenu(
 
 ADMIN_MENU = AuthenticatedMenu(
     name='admin',
-    password_authentication=False,
+    password_authentication=False,  # Disable password authentication
     authenticated_user_ids=getattr(config, 'ADMIN_USER_IDS', []),
     layout=[
     ['get_password', 'set_password'],
@@ -95,7 +95,7 @@ MAIN_MENU.create_torrent_file_handler('toggle_torrent_file',
                         )
 )
 
-@MAIN_MENU.callback(prefix_menu=False)
+@MAIN_MENU.callback(prefix_menu=False)  # prefix_menu=False for states switching between menus
 async def test_menu(update, context):
     return await TEST_MENU._start(update, context)
 
@@ -113,7 +113,6 @@ async def get_my_ID(update, context):
     await reply(update, 'Your UserID is:')
     await reply(update, f'{get_userid(update)}')
 
-@log_on_call()
 @TEST_MENU.callback(menu_on_exit=True)
 async def storage_stats(update, context):
     await reply(update, execute_shell("df -h | head -n 1; df -h | grep /plex/media"))
@@ -131,6 +130,7 @@ TEST_MENU.create_torrent_handler('this_is_a_test',
     lambda torrent_id: f'You selected torrent {str(torrent_id)}',
     on_exit_lambda=lambda menu: menu.get_callbacks().get('after_torrent_selection') or menu._main_menu
     )
+
 @TEST_MENU.callback()
 async def after_torrent_selection(update, context):
     await reply(update, f'Enter something to reverse:', reply_markup=REMOVE_MARKUP)
