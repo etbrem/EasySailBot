@@ -1,7 +1,7 @@
 # TelegramTransmissionBot
 Control your Transmission torrent client using a telegram bot
 
-`python3 transmission_telegram_bot.py`
+`python3 telegram_transmission_bot.py`
 
 
 ## Configuration
