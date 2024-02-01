@@ -4,27 +4,26 @@ Control your Transmission torrent client using a telegram bot
 `python3 telegram_transmission_bot.py`
 
 
-## Windows setup
+## Setup guide
 
 See Configuration and Requirements for more details
 
-0. Download this github repository to your computer
-
-1.1 Install python3  
-1.2 Run `python3 -m pip install transmissionrpc python-telegram-bot` to install python requirements  
-
-2.1 Install Vistual C++ Redistributable (needed for Transmission)  
-2.2 Install Transmission (select "Web interface")  
-2.3 Run Transmission
-2.4 Enable Transmission Web interface
-
-3.1 Create a new `API_TOKEN` through the [@BotFather](https://telegram.me/BotFather)  
-3.2 Update `API_TOKEN` in config.py  
-
-4.1 Update `DIR_TV_SHOWS` with the directory to store TV shows  
-4.2 Update `DIR_MOVIES` with the directory to store movies  
-
-5 Run `python3 telegram_transmission_bot.py`
+0. Download this github repository to your computer  
+1. Python3  
+    1. Install python3  
+    2. Run `python3 -m pip install transmissionrpc python-telegram-bot` to install python requirements  
+2. Transmission  
+    1. Install Vistual C++ Redistributable (needed for Transmission on windows)  
+    2. Install Transmission (select "Web interface")  
+    3. Run Transmission  
+    4. Enable Transmission Web interface  
+3. Telegram bot token  
+    1. Create a new `API_TOKEN` through the [@BotFather](https://telegram.me/BotFather)  
+    2. Update `API_TOKEN` in config.py  
+4. Directories  
+    1. Update `DIR_TV_SHOWS` with the directory to store TV shows  
+    2. Update `DIR_MOVIES` with the directory to store movies  
+5. Run `python3 telegram_transmission_bot.py`  
 
 
 ## Configuration
