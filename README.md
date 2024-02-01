@@ -1,5 +1,10 @@
 # TelegramTransmissionBot
-Control your Transmission torrent client using a telegram bot
+Control your Transmission torrent client using a telegram bot.  
+
+This bot can  
+- add movies and TV shows to the torrent client using magnet URLs
+- list/stop/start/delete torrents
+- disable specific files in a torrent
 
 `python3 telegram_transmission_bot.py`
 
@@ -14,15 +19,15 @@ See Configuration and Requirements for more details
     2. Run `python3 -m pip install transmissionrpc python-telegram-bot` to install python requirements  
 2. Transmission  
     1. Install Vistual C++ Redistributable (needed for Transmission on windows)  
-    2. Install Transmission (select "Web interface")  
+    2. Install Transmission (select "Web interface" during installation)  
     3. Run Transmission  
     4. Enable Transmission Web interface  
 3. Telegram bot token  
     1. Create a new `API_TOKEN` through the [@BotFather](https://telegram.me/BotFather)  
     2. Update `API_TOKEN` in config.py  
-4. Directories  
-    1. Update `DIR_TV_SHOWS` with the directory to store TV shows  
-    2. Update `DIR_MOVIES` with the directory to store movies  
+4. Video directories  
+    1. Update `DIR_TV_SHOWS` in config.py with the directory to store TV shows  
+    2. Update `DIR_MOVIES` in config.py with the directory to store movies  
 5. Run `python3 telegram_transmission_bot.py`  
 
 
@@ -51,4 +56,3 @@ DIR_MOVIES = r'C:\Users\USER\Videos\Movies'
 Transmission client [listening on port 9091](https://github.com/transmission/transmission/blob/main/docs/Web-Interface.md) (or change create_transmission_rpc() in transmission_ctl.py)  
 Make sure to check the "Web interface" when [installing Transmission](https://transmissionbt.com/download).  
 
-The "Storage Stats" command needs the linux binaries `df`, `head` and `grep`  
