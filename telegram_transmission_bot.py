@@ -47,7 +47,6 @@ ADMIN_MENU = AuthenticatedMenu(
 
 # 
 # Basic command handlers
-@log_on_call()
 @MAIN_MENU.callback(menu_on_exit=True)
 async def list_torrents(update, context):
     for torrent_repr in MAIN_MENU.iter_torrent_reprs(status=True):
