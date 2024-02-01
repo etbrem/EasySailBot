@@ -2,6 +2,8 @@ import math
 
 import transmissionrpc
 
+import config
+
 
 ######################################################################
 # Misc
@@ -27,7 +29,7 @@ TRANSMISSION_RPC_OBJECT = None
 
 
 def create_transmission_rpc():
-    return transmissionrpc.Client('127.0.0.1')
+    return transmissionrpc.Client(config.TRANSMISSION_IP)
 
 
 def get_transmission_rpc():
