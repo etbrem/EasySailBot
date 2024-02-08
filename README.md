@@ -1,4 +1,4 @@
-# TelegramTransmissionBot
+# EasySailBo(a)t
 Control your Transmission torrent client using a telegram bot.  
 
 This bot can  
