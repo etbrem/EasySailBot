@@ -5,6 +5,9 @@ This bot can
 - add movies and TV shows to the torrent client using magnet URLs
 - list/stop/start/delete torrents
 - disable specific files in a torrent
+- convert torrent videos to mp4 format which will most likely be castable
+- cast videos to devices on the network (UPnP)
+- control playback on devices on the network (UPnP)
 
 `python3 telegram_transmission_bot.py`
 
@@ -42,6 +45,7 @@ In config.py set the variables `API_TOKEN`, `AUTHENTICATED_USER_IDS`, `DIR_TV_SH
 DIR_TV_SHOWS = '/plex/media/TV Shows'
 DIR_MOVIES = '/plex/media/Movies'
 
+# OR
 
 DIR_TV_SHOWS = r'C:\Users\USER\Videos\TV Shows'
 DIR_MOVIES = r'C:\Users\USER\Videos\Movies'
@@ -49,7 +53,7 @@ DIR_MOVIES = r'C:\Users\USER\Videos\Movies'
 
 
 ## Requirements
-`python3 -m pip install transmissionrpc python-telegram-bot`  
+`python3 -m pip install requests cachetools transmissionrpc python-telegram-bot dlna-cast beautifulsoup4 python-magic`  
 
 [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) (for Transmission on windows)  
 
