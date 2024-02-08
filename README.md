@@ -1,5 +1,5 @@
 # EasySailBo(a)t
-Control your Transmission torrent client using a telegram bot.  
+Manage and cast your media library using a telegram bot.  
 
 This bot can  
 - add movies and TV shows to the torrent client using magnet URLs
