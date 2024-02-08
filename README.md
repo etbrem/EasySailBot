@@ -60,3 +60,6 @@ DIR_MOVIES = r'C:\Users\USER\Videos\Movies'
 Transmission client [listening on port 9091](https://github.com/transmission/transmission/blob/main/docs/Web-Interface.md) (or change create_transmission_rpc() in transmission_ctl.py)  
 Make sure to check the "Web interface" when [installing Transmission](https://transmissionbt.com/download).  
 
+
+In order to convert video files [ffmpeg](https://www.ffmpeg.org/about.html) must be available.  
+You can download and extract a zip [from here](https://github.com/BtbN/FFmpeg-Builds/releases) into the same directory as the bot.  
