@@ -1,6 +1,7 @@
+import os
 import math
 
-import transmissionrpc
+import transmissionrpc  # python3 -m pip install transmissionrpc
 
 import config
 
@@ -9,28 +10,42 @@ import config
 # Misc
 ######################################################################
 
-def convert_size(size_bytes, tag=True):
+def repr_size(size_bytes, tag=True):
    if size_bytes == 0:
        return "0B"
+   
    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
    i = int(math.floor(math.log(size_bytes, 1024)))
    p = math.pow(1024, i)
    s = round(size_bytes / p, 2)
+
    if tag:
         return "%s %s" % (s, size_name[i])
    else:
         return s
 
+
 ######################################################################
-# RPC
+# Transmission RPC
 ######################################################################
 
 TRANSMISSION_RPC_OBJECT = None
 
+# Until transmissionrpc is updated to support Transmission 4.1.0 (not yet available for download), add new features ourselves 
+# Once Transmission 4.1.0 will be installed the code will add torrents with sequential downloading enabled
+added_torrent_fields = {
+
+    # Added in Transmission 4.1.0 (rpc-version: 18), can help with streaming while downloading
+    # https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md
+    'sequentialDownload': ('boolean', 18, None, None, None, 'Download torrent pieces sequentially (first parts first).')
+}
+
+transmissionrpc.constants.TORRENT_ARGS['get'].update(added_torrent_fields)
+transmissionrpc.constants.TORRENT_ARGS['set'].update(added_torrent_fields)
+
 
 def create_transmission_rpc():
-    return transmissionrpc.Client(config.TRANSMISSION_IP)
-
+    return transmissionrpc.Client(getattr(config, 'TRANSMISSION_IP', '127.0.0.1'))
 
 def get_transmission_rpc():
     global TRANSMISSION_RPC_OBJECT
@@ -46,15 +61,20 @@ def add_magnet(magnet, download_dir):
     tc = get_transmission_rpc()
 
     torrent = tc.add_torrent(magnet, download_dir=download_dir)
-    return torrent_repr(torrent)
 
-def iter_torrents():
-    return get_transmission_rpc().get_torrents()
+    if 'sequentialDownload' in torrent._fields:
+        torrent._fields['sequentialDownload'] = transmissionrpc.utils.Field(True, True)
+        torrent._push()
+
+    return torrent_repr(torrent)
 
 
 ######################################################################
 # Torrent
 ######################################################################
+
+def iter_torrents():
+    return get_transmission_rpc().get_torrents()
 
 def get_torrent_size(torrent):
     torrent = make_torrent(torrent)
@@ -80,15 +100,15 @@ def torrent_status_repr(torrent):
     torrent_completed = get_torrent_completed(torrent)
     torrent_size = get_torrent_size(torrent)
 
-    torrent_completed_str = convert_size(torrent_completed)
-    torrent_size_str = convert_size(torrent_size)
+    torrent_completed_str = repr_size(torrent_completed)
+    torrent_size_str = repr_size(torrent_size)
 
     if torrent_size:
         torrent_percent = int(100.0 * torrent_completed / torrent_size )
     else:
         torrent_percent = '??'
 
-    return '{torrent_id}: {torrent_status} {torrent_percent}% {torrent_completed_str}/{torrent_size_str}\n{torrent_name}'.format(**locals())
+    return f'{torrent_id}: {torrent_status} {torrent_percent}% {torrent_completed_str}/{torrent_size_str}\n{torrent_name}'.format(**locals())
 
 def get_torrent(torrent_id):
     tc = get_transmission_rpc()
@@ -148,13 +168,19 @@ class TorrentFile(object):
 
     def __repr__(self):
         selected_status = ' DISABLED' if not self.selected else ''
-        return str(self) + f'\n{self.percent}% {convert_size(self.size)}{selected_status}'
+        return str(self) + f'\n{self.percent}% {repr_size(self.size)}{selected_status}'
 
 def iter_torrent_files(torrent):
     torrent = make_torrent(torrent)
+    
+    if torrent:
+        for file_id, properties in torrent.files().items():
+            yield TorrentFile(torrent.id, file_id, properties)
 
-    for file_id, properties in torrent.files().items():
-        yield TorrentFile(torrent.id, file_id, properties)
+def get_torrent_file(torrent_id, file_id):
+    for tf in iter_torrent_files(torrent_id):
+        if tf.file_id == file_id:
+            return tf
 
 def update_torrent_files(torrent, 
                         filter_cb = lambda torrent_file: True,
@@ -170,3 +196,15 @@ def update_torrent_files(torrent,
 
     get_transmission_rpc().set_files({torrent.id: file_updates})
     return file_updates
+
+def torrent_file_to_path(tf):
+    torrent = get_torrent(tf.torrent_id)
+    
+    download_dir = torrent._fields.get('downloadDir', None)
+    if download_dir is None:
+        return
+    value = download_dir.value
+    if value is None:
+        return
+
+    return os.path.join(value, tf.name)
