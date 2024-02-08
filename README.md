@@ -2,7 +2,7 @@
 Manage and cast your media library using a telegram bot.  
 
 This bot can  
-- add movies and TV shows to the torrent client using magnet URLs
+- add movies and TV shows to a Transmission torrent client using magnet URLs
 - list/stop/start/delete torrents
 - disable specific files in a torrent
 - convert torrent videos to mp4 format which will most likely be castable
