@@ -53,7 +53,7 @@ DIR_MOVIES = r'C:\Users\USER\Videos\Movies'
 
 
 ## Requirements
-`python3 -m pip install requests cachetools transmissionrpc python-telegram-bot dlna-cast beautifulsoup4 python-magic`  
+`python3 -m pip install requests cachetools transmissionrpc python-telegram-bot dlna-cast beautifulsoup4`  
 
 [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) (for Transmission on windows)  
 
