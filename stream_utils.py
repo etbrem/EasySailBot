@@ -8,7 +8,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 import bs4  # python3 -m pip install beautifulsoup4
 import requests  # python3 -m pip install requests
-import magic  # python3 -m pip install python-magic
+# import magic  # python3 -m pip install python-magic
+import mimetypes
 from dlna_cast.ssdp import discover as upnp_discover, \
                             Device as UPNPDevice  # python3 -m pip install dlna-cast
 
@@ -141,12 +142,15 @@ class HTTPTorrentServerHandler(BaseHTTPRequestHandler):
 
         return torrent_id, file_id
 
-    def guess_mimetype(self, filepath, use_data=True):
+    def guess_mimetype(self, filepath, use_data=False):
         if use_data:
+            import magic
             with open(filepath, 'rb') as f:
                 guessed = magic.from_buffer(f.read(1024), mime=True)
+
         else:
-            guessed = magic.from_file(filepath, mime=True)
+            fn = os.path.basename(filepath)
+            guessed = mimetypes.guess_type(fn)
 
         return self.OVERRIDE_MIMETYPES.get(guessed, guessed)
 
@@ -986,5 +990,3 @@ class UPNPTorrentCastMenu(TorrentMenu):
         
         location = seconds_to_clock(seconds)
         self.controller.send_seek(location)
-
-    
