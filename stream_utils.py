@@ -150,7 +150,7 @@ class HTTPTorrentServerHandler(BaseHTTPRequestHandler):
 
         else:
             fn = os.path.basename(filepath)
-            guessed = mimetypes.guess_type(fn)
+            guessed = mimetypes.guess_type(fn)[0]
 
         return self.OVERRIDE_MIMETYPES.get(guessed, guessed)
 
