@@ -19,7 +19,7 @@ See Configuration and Requirements for more details
 0. Download this github repository to your computer  
 1. Python3  
     1. Install python3  
-    2. Run `python3 -m pip install requests cachetools transmissionrpc python-telegram-bot dlna-cast beautifulsoup4 python-magic` to install python requirements  
+    2. Run `python3 -m pip install requests cachetools transmissionrpc python-telegram-bot dlna-cast beautifulsoup4` to install python requirements  
 2. Transmission  
     1. Install Vistual C++ Redistributable (needed for Transmission on windows)  
     2. Install Transmission (select "Web interface" during installation)  
