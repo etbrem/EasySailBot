@@ -1,4 +1,4 @@
-.PHONY: help sleep_5  start stop restart status  log log_watch log_clear clean  ipython  gitcreds
+.PHONY: help requirements sleep_5  start stop restart status  log log_watch log_clear clean  ipython  gitcreds
 
 APP_COMMAND ?= python telegram_transmission_bot.py # The command to run in the background
 
@@ -6,8 +6,8 @@ APP_COMMAND ?= python telegram_transmission_bot.py # The command to run in the b
 VENV_ACTIVATE_SCRIPT ?= .venv/bin/activate
 ENVIRONMENT_FILE ?= .env
 
-PID_FILE ?= /var/run/easysailbot.pid
-APP_LOG_FILE ?= /var/log/easysailbot.log
+PID_FILE ?= /var/run/bots/easysailbot.pid
+APP_LOG_FILE ?= /var/log/bots/easysailbot.log
 
 GET_DESCENDANTS_SCRIPT ?= get_descendants.sh
 
@@ -31,6 +31,8 @@ help:
 
 requirements:
 	apt install libglib2.0-dev libxml2-dev libxslt-dev
+	source $(VENV_ACTIVATE_SCRIPT) && \
+	source $(ENVIRONMENT_FILE) && \
 	python3 -m pip install requests cachetools transmissionrpc python-telegram-bot dlna-cast beautifulsoup4
 
 sleep_5:
@@ -39,7 +41,7 @@ sleep_5:
 
 
 log:
-	@less "$(APP_LOG_FILE)"
+	@cat "$(APP_LOG_FILE)"
 
 log_watch:
 	@tail -f "$(APP_LOG_FILE)"
@@ -133,4 +135,4 @@ ipython:
 gitcreds:
 	@echo "echo 'SSH commands:'"
 	@echo '    eval "$$(ssh-agent -s)"'
-	@echo '    ssh-add ~/.ssh/id_ed25519_github'
+	@echo '    ssh-add ~/.ssh/id_github_easysailbot'
